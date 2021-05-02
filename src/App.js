@@ -67,7 +67,7 @@ function App() {
                       columns={columns}  bordered
                       title={() => 'Students'}
                       footer={() => 'Coming Soon...'}
-                      pagination={{ pageSize: 50 }} scroll={{ y: 240 }}
+                      pagination={{ pageSize: 100 }} scroll={{ y: 540 }}
                       rowKey={(student)=> student.id}
 
         />;
