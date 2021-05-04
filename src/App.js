@@ -1,21 +1,69 @@
-import {Button, Radio, Spin} from 'antd';
+import {Badge, Button, Radio, Spin, Tag} from 'antd';
 import './App.css';
+import StudentDrawerForm from "./StudentDrawerForm";
 import {useState, useEffect} from "react";
-import{getAllStudents} from "./client";
-import { Layout, Menu, Breadcrumb, Table } from 'antd';
+import {deleteStudent, getAllStudents} from "./client";
+import { Layout, Menu, Breadcrumb, Table , Image } from 'antd';
+import { Popconfirm, message } from 'antd';
 import {
     DesktopOutlined,
     PieChartOutlined,
     FileOutlined,
     TeamOutlined,
-    UserOutlined, LoadingOutlined,
+    UserOutlined, LoadingOutlined, DownloadOutlined, PlusOutlined, MinusOutlined,
 } from '@ant-design/icons';
 import { Empty } from 'antd';
+import Avatar from "antd/es/avatar/avatar";
+import {errorNotification, successNotification} from "./Notification";
 const { Header, Content, Footer, Sider } = Layout;
 const { SubMenu } = Menu;
+const text = 'Are you sure to delete this task?';
 
+function confirm() {
+    message.info('Clicked on Yes.');
+}
+function cancel(e) {
+    console.log(e);
+    message.error('Click on No');
+}
+const TheAvatar=({name}) =>{
+    let trim = name.trim();
+    if(trim.length===0 ){
+        return <Avatar icon={<UserOutlined/>}/>
+    }
+    const split =trim.split(" ");
+    if(split.length===1){
+        return <Avatar>{name.charAt(0)}</Avatar>
+    }
+    return <Avatar>{`${name.charAt(0)}${name.charAt(name.length-1)}`}</Avatar>
+}
 
-const columns = [
+const removeStudent = (studentId, callback) => {
+    deleteStudent(studentId).then(() => {
+        successNotification("Student deleted", `Student with ${studentId} was deleted`);
+        callback();
+    }).catch(err => {
+        console.log(err);
+        err.response.json().then(res => {
+            console.log(res);
+            errorNotification(
+                "There was an issue",
+                `${res.message} [${res.status}] [${res.error}]`,
+                "bottomLeft"
+            )
+        });
+
+    })
+}
+
+const columns =fetchStudents => [
+    {
+        title: 'Avatar',
+        dataIndex: 'avatar',
+        key: 'avatar',
+        render:(text, student) => <TheAvatar name={student.name}/>
+    },
+
     {
         title: 'Id',
         dataIndex: 'id',
@@ -36,6 +84,22 @@ const columns = [
         dataIndex: 'gender',
         key: 'gender',
     },
+    {
+        title: 'Actions',
+        key: 'actions',
+        render: (text, student) =>
+            <Radio.Group>
+                <Popconfirm
+                    placement='topRight'
+                    title={`Are you sure to delete ${student.name}`}
+                    onConfirm={() => removeStudent(student.id, fetchStudents)}
+                    okText='Yes'
+                    cancelText='No'>
+                    <Radio.Button value="small">Delete Student</Radio.Button>
+                </Popconfirm>
+                <Radio.Button value="small">Edit Student</Radio.Button>
+            </Radio.Group>
+    }
 ];
 
 const antIcon = <LoadingOutlined style={{ fontSize: 24 }} spin />;
@@ -43,14 +107,26 @@ function App() {
     const [students, setStudents]= useState([]);
     const [collapsed, setCollapsed] = useState(false);
     const [fetching, setFetching] = useState(true);
+    const [showDrawer, setShowDrawer] = useState(false);
+
     const fetchStudents=()=>
         getAllStudents().
         then(res=> res.json())
             .then(data=> {
                 console.log(data);
                 setStudents(data);
-                setFetching(false);
-            })
+
+            }).catch(err=>{
+                console.log(err.response)
+            err.response.json().then(res=>{
+                console.log(res);
+                errorNotification("There was an issue",
+                    `${res.message} [${res.status}] [${res.error}]`)
+            });
+        }).finally(()=>setFetching(false))
+
+
+
     useEffect(()=>{
         console.log("component has mounted");
         fetchStudents();
@@ -61,16 +137,56 @@ function App() {
             return <Spin indicator={antIcon} />
         }
         if(students.length<=0){
-            return <Empty />;
+            return <>
+
+                <Button
+                    onClick={() => setShowDrawer(!showDrawer)}
+                    type="primary" shape="round" icon={<PlusOutlined  />} size="small">
+                    Add New Student
+                </Button>
+                <StudentDrawerForm
+                    showDrawer={showDrawer}
+                    setShowDrawer={setShowDrawer}
+                    fetchStudents={fetchStudents}
+                />
+                <Empty />
+            </>
         }
-        return <Table dataSource={students}
-                      columns={columns}  bordered
-                      title={() => 'Students'}
-                      footer={() => 'Coming Soon...'}
+        return <>
+
+            <StudentDrawerForm
+                showDrawer={showDrawer}
+                setShowDrawer={setShowDrawer}
+                fetchStudents={fetchStudents}
+            />
+                    <Table dataSource={students}
+                      columns={columns(fetchStudents)}
+                           bordered
+                      title={() => <> <Tag color="blue-inverse">Number of Students: </Tag>
+                          <Badge count={students.length } className="site-badge-count-4" />
+                          <Button
+                              onClick={() => setShowDrawer(!showDrawer)}
+                              type="primary" shape="round" icon={<PlusOutlined  />} size="small">
+                              Add New Student
+                          </Button>
+                          </>
+                      }
+                      footer={() => <>
+                          <Button
+                          onClick={() => setShowDrawer(!showDrawer)}
+                          type="primary" shape="round" icon={<PlusOutlined  />} size="small">
+                          Add New Student
+                      </Button>
+                          <hr/>
+                          <Badge count={students.length} className="site-badge-count-4" />
+
+                      </>
+                      }
                       pagination={{ pageSize: 100 }} scroll={{ y: 540 }}
                       rowKey={(student)=> student.id}
 
-        />;
+        />
+        </>
     }
 
 
@@ -115,11 +231,17 @@ function App() {
                     <Breadcrumb.Item>Bill</Breadcrumb.Item>
                 </Breadcrumb>
                 <div className="site-layout-background" style={{ padding: 24, minHeight: 360 }}>
-                    {students.length<=0?'No data' : 'data is available'}
+                    {students.length<=0?'No data present yet ' : 'Table has data as seen below'}
                     {renderStudents()}
                 </div>
             </Content>
-            <Footer style={{ textAlign: 'center' }}>JohnQ ©2021 Created by John Q.</Footer>
+            <Footer style={{ textAlign: 'center' }}>JohnQ ©2021 Created by John Q.
+                <hr/>
+                <Image
+                    width ={75}
+                    src="https://picsum.photos/seed/picsum/200/300" />
+
+            </Footer>
         </Layout>
     </Layout>
 
